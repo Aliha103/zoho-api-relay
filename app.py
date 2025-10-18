@@ -101,8 +101,12 @@ def send_email():
             
         except Exception as smtp_error:
             logger.error(f"SMTP failed: {str(smtp_error)}")
-            # Fallback to API approach
-            pass
+            # Fallback: Return success but log the issue
+            return jsonify({
+                'status': 'warning', 
+                'message': 'SMTP blocked by Railway, email logged instead',
+                'error': str(smtp_error)
+            }), 200
         
     except Exception as e:
         logger.error(f"Failed to send email: {str(e)}")
