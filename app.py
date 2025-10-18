@@ -111,6 +111,9 @@ def start_oauth():
     
     # Get the current service URL
     service_url = request.url_root.rstrip('/')
+    # Force HTTPS for Railway
+    if 'railway.app' in service_url:
+        service_url = service_url.replace('http://', 'https://')
     redirect_uri = f"{service_url}/auth/callback"
     
     auth_url = f"https://accounts.zoho.eu/oauth/v2/auth?scope=ZohoMail.messages.CREATE,ZohoMail.accounts.READ&client_id={ZOHO_CLIENT_ID}&response_type=code&access_type=offline&redirect_uri={redirect_uri}"
@@ -134,7 +137,7 @@ def oauth_callback():
         'grant_type': 'authorization_code',
         'client_id': ZOHO_CLIENT_ID,
         'client_secret': ZOHO_CLIENT_SECRET,
-        'redirect_uri': request.url_root.rstrip('/') + '/auth/callback',
+        'redirect_uri': (request.url_root.rstrip('/').replace('http://', 'https://') if 'railway.app' in request.url_root else request.url_root.rstrip('/')) + '/auth/callback',
         'code': code
     }
     
