@@ -69,44 +69,40 @@ def send_email():
         if not access_token:
             return jsonify({'error': 'Failed to get access token'}), 500
         
-        # Try SMTP approach instead of API
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
+        # Use Zeptomail API instead of SMTP
+        zeptomail_url = "https://api.zeptomail.eu/v1.1/email"
         
-        # Create message
-        msg = MIMEMultipart()
-        msg['From'] = data.get('from', ZOHO_USER_EMAIL)
-        msg['To'] = data['to']
-        msg['Subject'] = data['subject']
+        # Prepare Zeptomail payload
+        payload = {
+            "from": {
+                "address": data.get('from', ZOHO_USER_EMAIL)
+            },
+            "to": [{
+                "email_address": {
+                    "address": data['to'],
+                    "name": "Guest"
+                }
+            }],
+            "subject": data['subject'],
+            "htmlbody": data['body'] if data.get('html', False) else f"<div>{data['body']}</div>"
+        }
         
-        # Add body
-        if data.get('html', False):
-            msg.attach(MIMEText(data['body'], 'html'))
+        headers = {
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'authorization': f'Zoho-enczapikey {os.getenv("ZEPTOMAIL_API_KEY")}'
+        }
+        
+        logger.info(f"Sending email via Zeptomail from {payload['from']['address']} to {data['to']}")
+        
+        response = requests.post(zeptomail_url, json=payload, headers=headers)
+        
+        if response.status_code in [200, 201]:
+            logger.info(f"Email sent successfully via Zeptomail to {data['to']}")
+            return jsonify({'status': 'success', 'message': 'Email sent successfully via Zeptomail'})
         else:
-            msg.attach(MIMEText(data['body'], 'plain'))
-        
-        # Send via SMTP (this should work from Railway)
-        try:
-            # Use Zoho SMTP
-            server = smtplib.SMTP('smtp.zoho.eu', 587)
-            server.starttls()
-            server.login(ZOHO_USER_EMAIL, os.getenv('ZOHO_SMTP_PASSWORD'))
-            text = msg.as_string()
-            server.sendmail(data.get('from', ZOHO_USER_EMAIL), data['to'], text)
-            server.quit()
-            
-            logger.info(f"Email sent successfully via SMTP to {data['to']}")
-            return jsonify({'status': 'success', 'message': 'Email sent successfully via SMTP'})
-            
-        except Exception as smtp_error:
-            logger.error(f"SMTP failed: {str(smtp_error)}")
-            # Fallback: Return success but log the issue
-            return jsonify({
-                'status': 'warning', 
-                'message': 'SMTP blocked by Railway, email logged instead',
-                'error': str(smtp_error)
-            }), 200
+            logger.error(f"Zeptomail API error: {response.status_code} - {response.text}")
+            return jsonify({'error': f'Zeptomail API error: {response.text}'}), 500
         
     except Exception as e:
         logger.error(f"Failed to send email: {str(e)}")
