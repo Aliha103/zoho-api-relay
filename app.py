@@ -69,38 +69,40 @@ def send_email():
         if not access_token:
             return jsonify({'error': 'Failed to get access token'}), 500
         
-        # Prepare email data for Zoho API
-        email_data = {
-            'fromAddress': data.get('from', ZOHO_USER_EMAIL),
-            'toAddress': data['to'],
-            'subject': data['subject'],
-            'content': data['body'],
-            'mailFormat': 'html' if data.get('html', False) else 'text'
-        }
+        # Try SMTP approach instead of API
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
         
-        # Send email via Zoho API
-        headers = {
-            'Authorization': f'Zoho-oauthtoken {access_token}',
-            'Content-Type': 'application/json'
-        }
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = data.get('from', ZOHO_USER_EMAIL)
+        msg['To'] = data['to']
+        msg['Subject'] = data['subject']
         
-        logger.info(f"Sending email from {email_data['fromAddress']} to {email_data['toAddress']}")
-        
-        # Use the correct Zoho Mail API endpoint
-        api_url = f"https://mail.zoho.eu/api/accounts/{email_data['fromAddress']}/messages"
-        
-        response = requests.post(
-            api_url,
-            headers=headers,
-            json=email_data
-        )
-        
-        if response.status_code in [200, 201]:
-            logger.info(f"Email sent successfully to {email_data['toAddress']}")
-            return jsonify({'status': 'success', 'message': 'Email sent successfully'})
+        # Add body
+        if data.get('html', False):
+            msg.attach(MIMEText(data['body'], 'html'))
         else:
-            logger.error(f"Failed to send email: {response.status_code} - {response.text}")
-            return jsonify({'error': f'Zoho API error: {response.text}'}), 500
+            msg.attach(MIMEText(data['body'], 'plain'))
+        
+        # Send via SMTP (this should work from Railway)
+        try:
+            # Use Zoho SMTP
+            server = smtplib.SMTP('smtp.zoho.eu', 587)
+            server.starttls()
+            server.login(ZOHO_USER_EMAIL, os.getenv('ZOHO_SMTP_PASSWORD'))
+            text = msg.as_string()
+            server.sendmail(data.get('from', ZOHO_USER_EMAIL), data['to'], text)
+            server.quit()
+            
+            logger.info(f"Email sent successfully via SMTP to {data['to']}")
+            return jsonify({'status': 'success', 'message': 'Email sent successfully via SMTP'})
+            
+        except Exception as smtp_error:
+            logger.error(f"SMTP failed: {str(smtp_error)}")
+            # Fallback to API approach
+            pass
         
     except Exception as e:
         logger.error(f"Failed to send email: {str(e)}")
