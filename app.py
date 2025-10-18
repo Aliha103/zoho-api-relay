@@ -86,8 +86,11 @@ def send_email():
         
         logger.info(f"Sending email from {email_data['fromAddress']} to {email_data['toAddress']}")
         
+        # Use the correct Zoho Mail API endpoint
+        api_url = f"https://mail.zoho.eu/api/accounts/{email_data['fromAddress']}/messages"
+        
         response = requests.post(
-            ZOHO_MAIL_API_URL,
+            api_url,
             headers=headers,
             json=email_data
         )
